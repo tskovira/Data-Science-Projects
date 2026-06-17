@@ -1,0 +1,499 @@
+---
+title: "Pittsburgh Dashboard - Phase 2"
+format:
+  dashboard:
+    theme: yeti
+    pages: true
+    orientation: columns
+    embed-resources: true
+    standalone: true
+---
+
+<!-- Page 1 -->
+# Dataset Overview
+
+::: {.panel-tabset}
+
+## Dataset Overview
+```{python}
+import pandas as pd
+import altair as alt
+from great_tables import GT, md
+
+# Load dataset
+df = pd.read_csv("Pittsburgh_hourly_normals_1981_2010.csv")
+df["DATE"]  = pd.to_datetime("2000-" + df["DATE"].astype(str), errors="coerce")
+df["Month"] = df["DATE"].dt.month
+df["Day"]   = df["DATE"].dt.day
+df["DayOfYear"]   = df["DATE"].dt.dayofyear
+df["Hour"]  = df["DATE"].dt.hour
+
+# Drop all *_ATTRIBUTES columns
+df_clean = df.loc[:, ~df.columns.str.contains("_ATTRIBUTES")]
+
+# Rename key variables
+rename_map = {
+    "HLY-CLOD-PCTCLR": "Cloud (% Clear)",
+    "HLY-DEWP-NORMAL": "DewPoint (°F)",
+    "HLY-PRES-NORMAL": "Pressure (hPa)",
+    "HLY-TEMP-NORMAL": "Temperature (°F)",
+    "HLY-WIND-AVGSPD": "Wind (MPH)"
+}
+df_clean = df_clean.rename(columns=rename_map)
+
+# Unit conversion - divide by 10 to get correct values
+conversion_columns = ["Cloud (% Clear)", "DewPoint (°F)", "Pressure (hPa)", "Temperature (°F)", "Wind (MPH)"]
+for col in conversion_columns:
+    if col in df_clean.columns:
+        df_clean[col] = df_clean[col] / 10.0
+
+rows, cols = df_clean.shape
+print(f"Dataset contains {rows:,} rows and {cols} columns (after dropping attributes)")
+
+print("\nKey column categories:")
+print("- Station info: STATION, DATE, LATITUDE, LONGITUDE, ELEVATION, NAME")
+print("- Weather variables: Cloud, DewPoint, Pressure, Temperature, Wind")
+
+summary = df_clean[["Cloud (% Clear)", "DewPoint (°F)", "Pressure (hPa)", "Temperature (°F)", "Wind (MPH)"]].describe().round(2).reset_index(names="Statistic")
+
+table = GT(
+        summary,
+        rowname_col="Statistic" 
+    ).tab_header(
+        title=md("Pittsburgh Hourly Weather Observations (1981–2010)")
+    ).tab_options(
+        table_width = "700px")
+table
+```
+:::
+
+---
+
+<!--Page 2-->
+# Basics
+
+::: {.panel-tabset}
+
+## Monthly Cloud Trends
+```{python}
+import altair as alt
+import pandas as pd
+
+df = pd.read_csv("Pittsburgh_hourly_normals_1981_2010.csv")
+df["DATE"] = pd.to_datetime("2000-" + df["DATE"].astype(str), errors="coerce")
+df["Month"] = df["DATE"].dt.month
+
+cloud_cols = {
+    "HLY-CLOD-PCTCLR": "Clear",
+    "HLY-CLOD-PCTFEW": "Few",
+    "HLY-CLOD-PCTSCT": "Scattered",
+    "HLY-CLOD-PCTBKN": "Broken",
+    "HLY-CLOD-PCTOVC": "Overcast"
+}
+df = df.rename(columns=cloud_cols)
+
+cloud_columns = ["Clear", "Few", "Scattered", "Broken", "Overcast"]
+for col in cloud_columns:
+    if col in df.columns:
+        df[col] = df[col] / 10.0
+
+cloud_monthly = df.groupby("Month")[list(cloud_cols.values())].mean().reset_index()
+cloud_long = cloud_monthly.melt("Month", var_name="Condition", value_name="Percent")
+
+chart1 = alt.Chart(cloud_long).mark_line(point=True).encode(
+    x=alt.X("Month:O", title="Month"),
+    y=alt.Y("Percent:Q", title="Average Cloud Cover (%)"),
+    color=alt.Color("Condition:N", title="Condition")
+).properties(
+    title="Pittsburgh Average Cloud Cover by Month (1981–2010)",
+    width=700,
+    height=450
+)
+chart1
+```
+
+## Average Temperature
+```{python}
+
+df = pd.read_csv("Pittsburgh_hourly_normals_1981_2010.csv")
+df["DATE"] = pd.to_datetime("2000-" + df["DATE"].astype(str), errors="coerce")
+df["DayOfYear"] = df["DATE"].dt.dayofyear
+
+temp_col = "HLY-TEMP-NORMAL"
+
+daily_stats = (
+    df.groupby("DayOfYear")[temp_col]
+        .agg(["min", "mean", "max"])
+        .reset_index()
+)
+daily_stats[["min", "mean", "max"]] = (daily_stats[["min", "mean", "max"]] / 10).round(1)
+
+summary = daily_stats.melt(id_vars=["DayOfYear"], var_name="temp_type", value_name="temp")
+
+chart5 = alt.Chart(summary).mark_line().encode(
+    x=alt.X("DayOfYear", title="Day of Year", scale=alt.Scale(domain=[1, 366])),
+    y=alt.Y("temp:Q", title="Temperature (°F)"),
+    color=alt.Color("temp_type:N", title="Temperature Type",
+        scale=alt.Scale(
+            domain=["min", "mean", "max"],
+            range = ["blue", "green", "red"]),
+        legend=alt.Legend(title='Daily temperature')
+        )
+).properties(
+    title="Pittsburgh Average Temperature by Day (1981–2010)",
+    width=700,
+    height=500
+)
+chart5
+```
+
+## Daily Wind Speeds
+```{python}
+
+df = pd.read_csv("Pittsburgh_hourly_normals_1981_2010.csv")
+df['DATE'] = pd.to_datetime('2000-' + df['DATE'].astype(str))
+df['Month'] = df['DATE'].dt.month
+df['Hour'] = df['DATE'].dt.hour
+df['Season'] = df['Month'].map({12: 'Winter', 1: 'Winter', 2: 'Winter',
+                                3: 'Spring', 4: 'Spring', 5: 'Spring',
+                                6: 'Summer', 7: 'Summer', 8: 'Summer',
+                                9: 'Fall', 10: 'Fall', 11: 'Fall'})
+
+for col in ['HLY-WIND-AVGSPD', 'HLY-WIND-VCTSPD']:
+    df[col] = df[col] / 10.0
+
+hourly_wind = df.groupby('Hour')['HLY-WIND-AVGSPD'].mean().reset_index()
+
+chart6 = alt.Chart(hourly_wind).mark_area(
+    line={'color': 'steelblue', 'strokeWidth': 2},
+    color=alt.Gradient(
+        gradient='linear',
+        stops=[alt.GradientStop(color='lightblue', offset=0),
+               alt.GradientStop(color='steelblue', offset=1)],
+        x1=1, y1=1, x2=1, y2=0
+    )
+).encode(
+    x=alt.X('Hour:O', title='Hour of Day'),
+    y=alt.Y('HLY-WIND-AVGSPD:Q', title='Average Wind Speed (mph)')
+).properties(
+    width=700,
+    height=450,
+    title='Pittsburgh Average Wind Speed by Hour (1981–2010)'
+)
+chart6
+```
+
+:::
+
+---
+
+<!--Page 3-->
+# Wind, Temperature, and Clouds Relationship
+
+::: {.panel-tabset}
+
+## Seasonal Relationship Visualization
+
+```{python}
+import pandas as pd
+import altair as alt
+
+# Load and prep data
+df = pd.read_csv("Pittsburgh_hourly_normals_1981_2010.csv")
+df["DATE"] = pd.to_datetime("2000-" + df["DATE"].astype(str), errors="coerce")
+df["Month"] = df["DATE"].dt.month
+
+# Rename and clean
+cols = {
+    "HLY-TEMP-NORMAL": "Temperature (°F)",
+    "HLY-WIND-AVGSPD": "Wind (MPH)",
+    "HLY-CLOD-PCTSCT": "Cloud (Scattered %)"
+}
+df = df.rename(columns=cols)
+df = df[list(cols.values()) + ["Month"]].dropna()
+
+# Convert to correct units
+df["Temperature (°F)"] /= 10
+df["Wind (MPH)"] /= 10
+df["Cloud (Scattered %)"] /= 10
+
+# Compute true monthly averages (no normalization or cumulative)
+df_mean = df.groupby("Month")[list(cols.values())].mean().reset_index()
+
+# Melt for plotting
+df_melt = df_mean.melt("Month", var_name="Variable", value_name="Value")
+
+# Build final chart
+chart9 = alt.Chart(df_melt).mark_line(point=True).encode(
+    x=alt.X(
+        "Month:O",
+        title="Month",
+        axis=alt.Axis(labelAngle=0),
+        scale=alt.Scale(paddingInner=0.1, paddingOuter=0)
+    ),
+    y=alt.Y("Value:Q", title="Averaged Value"),
+    color=alt.Color("Variable:N", title="Variable"),
+    tooltip=["Month", "Variable", alt.Tooltip("Value:Q", format=".2f")]
+).properties(
+    title="Monthly Relationship of Temperature, Wind, and Cloud Coverage",
+    width=700,
+    height=500
+)
+
+chart9
+```
+
+## Seasonal Relationship Pivot Table
+
+```{python}
+pivot_table1 = pd.pivot_table(
+    df,
+    values=["Temperature (°F)", "Wind (MPH)", "Cloud (Scattered %)"],
+    index="Month",
+    aggfunc="mean"
+).round(2)
+
+pivot_table1
+```
+
+:::
+
+---
+
+<!--Page 4-->
+# Dew Point/Pressure Interactions
+
+::: {.panel-tabset}
+
+## Temperature & Dew Point
+```{python}
+import pandas as pd
+import altair as alt
+
+# --- Data Preparation (Unchanged) ---
+# Assuming the file "Pittsburgh_hourly_normals_1981_2010.csv" is available.
+df = pd.read_csv("Pittsburgh_hourly_normals_1981_2010.csv")
+df["DATE"] = pd.to_datetime("2000-" + df["DATE"].astype(str), errors="coerce")
+df["DayOfYear"] = df["DATE"].dt.dayofyear
+temp_cols = [
+    "HLY-TEMP-NORMAL", "HLY-TEMP-10PCTL", "HLY-TEMP-90PCTL",
+    "HLY-DEWP-NORMAL", "HLY-DEWP-10PCTL", "HLY-DEWP-90PCTL"
+]
+df[temp_cols] = df[temp_cols] / 10
+daily_stats = (
+    df.groupby("DayOfYear")[temp_cols]
+        .agg("mean")
+        .reset_index()
+)
+
+# --- Altair Refactoring using Transform and Layering ---
+
+# 1. Define the custom names and color map for the legend
+legend_domain = ["HLY-TEMP-NORMAL", "HLY-DEWP-NORMAL"]
+legend_range = ["Avg. Temperature", "Avg. Dew Point"]
+color_map = ["steelblue", "red"]
+
+# 2. Base chart definition (includes the fold/melt operation)
+base = alt.Chart(daily_stats).transform_fold(
+    # Select only the normal (mean) columns for the lines
+    fold=["HLY-TEMP-NORMAL", "HLY-DEWP-NORMAL"],
+    as_=['Metric', 'Value']
+).encode(
+    x=alt.X("DayOfYear", title="Day of Year", scale=alt.Scale(domain=[1, 366])),
+    y=alt.Y("Value:Q", title="Average Temp. & Dew Point (F°)"),
+    # 💡 Use the new 'Metric' column for color encoding
+    color=alt.Color('Metric:N',
+        # 🌟 CRITICAL: Use scale/domain/range to rename legend items
+        scale=alt.Scale(domain=legend_domain, range=color_map),
+        legend=alt.Legend(title="Measurement", labelExpr="{'HLY-TEMP-NORMAL': 'Avg. Temp', 'HLY-DEWP-NORMAL': 'Avg. Dew Point'}[datum.value]"),
+    )
+).properties(
+    title="Temperature vs Dew Point (1981–2010)",
+    width=700,
+    height=500
+)
+
+# 3. Create the Lines (Normals)
+lines = base.mark_line(size=2).encode(
+    # Note: No need to redefine X, Y, or Color as they are inherited from base
+)
+# TODO add legend for Areas 
+# 4. Create the Area Bands (Percentiles)
+temp_area = lines.mark_area(opacity=0.3, color="steelblue").encode(
+    y="HLY-TEMP-10PCTL:Q",
+    y2="HLY-TEMP-90PCTL:Q",
+    color=alt.value("steelblue")
+)
+dew_area = lines.mark_area(opacity=0.3, color="red").encode(
+    y="HLY-DEWP-10PCTL:Q",
+    y2="HLY-DEWP-90PCTL:Q",
+    color=alt.value("red")
+)
+
+# 5. Combine and display
+final_chart = (lines + temp_area + dew_area).resolve_scale(
+    # Ensure all Y-axes are aligned even though lines and areas are separate
+    y='shared'
+)
+final_chart
+```
+
+## Dew Point & Wind Speed
+```{python}
+df = pd.read_csv("Pittsburgh_hourly_normals_1981_2010.csv")
+
+df["DATE"] = pd.to_datetime("2000-" + df["DATE"].astype(str), errors="coerce")
+
+df["DayOfYear"] = df["DATE"].dt.dayofyear
+
+df["Hour"] = df["DATE"].dt.hour
+
+temp_cols = ["HLY-TEMP-NORMAL","HLY-TEMP-10PCTL","HLY-TEMP-90PCTL"]+["HLY-DEWP-NORMAL","HLY-DEWP-10PCTL","HLY-DEWP-90PCTL"]
+
+df[temp_cols]= df[temp_cols]/10
+
+daily_stats = (df.groupby("DayOfYear")[temp_cols].agg("mean").reset_index())
+cols = ["HLY-DEWP-NORMAL",'HLY-WIND-AVGSPD',"Hour"]
+
+
+
+daily_df = df.groupby("DayOfYear")[cols].sample(n=2).reset_index()
+bins = [0, 6, 12, 18, 24]
+labels = ['Night', 'Morning', 'Afternoon', 'Early Morning'] 
+daily_df['Time_Category'] = pd.cut(
+    daily_df['Hour'],
+    bins=bins,
+    labels=labels,
+    right=False, # Use [start, end) interval (inclusive start, exclusive end)
+    include_lowest=True # Include the lowest value (0)
+)
+
+chart10 = alt.Chart(daily_df).mark_point().encode(
+    x=alt.X(cols[0],title="Dew Point (F°)"),
+    y=alt.Y(cols[1],title='Average Wind Speed (mph)'),
+    color="Time_Category:N"
+).properties(
+    title="Dew Point vs Wind Speed (1981-2010)",
+    width=700,
+    height=450
+)
+chart10
+```
+
+
+:::
+
+---
+
+<!-- Page 5 -->
+# Seasonal Observations
+
+::: {.panel-tabset}
+
+## Wind Direction Seasonal Frequency
+```{python}
+import pandas as pd
+
+df = pd.read_csv("Pittsburgh_hourly_normals_1981_2010.csv")
+
+speed_columns = ['HLY-WIND-AVGSPD', 'HLY-WIND-VCTSPD']
+for col in speed_columns:
+    df[col] = df[col] / 10.0
+
+# Add date and season columns
+df['DATE'] = pd.to_datetime('2000-' + df['DATE'].astype(str))
+df['Month'] = df['DATE'].dt.month
+df['Hour'] = df['DATE'].dt.hour
+df['Season'] = df['Month'].map({12: 'Winter', 1: 'Winter', 2: 'Winter',
+                                3: 'Spring', 4: 'Spring', 5: 'Spring',
+                                6: 'Summer', 7: 'Summer', 8: 'Summer',
+                                9: 'Fall', 10: 'Fall', 11: 'Fall'})
+
+percentage_columns = ['HLY-WIND-1STPCT', 'HLY-WIND-2NDPCT', 'HLY-WIND-PCTCLM']
+for col in percentage_columns:
+    df[col] = df[col] / 10.0
+
+def find_cardinal_direction(direction_value):
+        direction_map = {1: 'N', 2: 'NE', 3: 'E', 4: 'SE', 5: 'S', 6: 'SW', 7: 'W', 8: 'NW'}
+        return direction_map.get(int(direction_value))
+
+df['Primary_Wind_Direction'] = df['HLY-WIND-1STDIR'].apply(find_cardinal_direction)
+
+# 1st direction frequency
+direction_counts = df['Primary_Wind_Direction'].value_counts().reset_index()
+direction_counts.columns = ['Direction', 'Count']
+direction_counts['Percentage'] = (direction_counts['Count'] / direction_counts['Count'].sum()) * 100
+
+# Sort order cardinally
+direction_order = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+
+seasonal_directions = df.groupby(['Season', 'Primary_Wind_Direction']).size().reset_index(name='Count')
+
+seasonal_directions['Percentage'] = seasonal_directions.groupby('Season')['Count'].transform(
+    lambda x: (x / x.sum()) * 100
+)
+
+season_order = ['Spring', 'Summer', 'Fall', 'Winter']
+
+chart12 = alt.Chart(seasonal_directions).mark_bar().encode(
+    x=alt.X('Primary_Wind_Direction:N', 
+            title='Wind Direction',
+            sort=direction_order),
+    y=alt.Y('Percentage:Q', 
+            title='Percentage of Time',
+            scale=alt.Scale(domain=[0, 100])),
+    color=alt.Color('Season:N', 
+                    scale=alt.Scale(scheme='category10'),
+                    sort=season_order),
+    column=alt.Column('Season:N', 
+                     title='Season',
+                     sort=season_order),
+    tooltip=['Season:N', 'Primary_Wind_Direction:N', 'Percentage:Q']
+).properties(
+    width=300,
+    height=600,
+    title='Pittsburgh Seasonal Wind Direction Patterns (1981-2010)'
+)
+chart12
+```
+
+## Dew Point Seasonal Averages
+```{python}
+# Unit conversion for dew point
+df['HLY-DEWP-NORMAL'] = df['HLY-DEWP-NORMAL'] / 10.0
+df['HLY-TEMP-NORMAL'] = df['HLY-TEMP-NORMAL'] / 10.0
+
+dewpoint_seasonal = df.groupby('Season')['HLY-DEWP-NORMAL'].agg([
+    'mean', 'std', 'min', 'max'
+]).round(1)
+
+dewpoint_seasonal = dewpoint_seasonal.reindex(['Spring', 'Summer', 'Fall', 'Winter'])
+
+# Calculate temperature - dew point difference by season
+df['Temp_Dewpoint_Diff'] = df['HLY-TEMP-NORMAL'] - df['HLY-DEWP-NORMAL']
+temp_diff_data = df.groupby('Season')['Temp_Dewpoint_Diff'].mean().reindex(season_order).reset_index()
+
+chart14 = alt.Chart(temp_diff_data).mark_bar(color='orange').encode(
+    x=alt.X('Season:N', sort=season_order, title='Season'),
+    y=alt.Y('Temp_Dewpoint_Diff:Q', title='Average Temperature - Dew Point Difference (°F)')
+).properties(
+    width=550,
+    height=700,
+    title='Pittsburgh Seasonal Dew Point Difference (1981-2010)'
+)
+chart14
+```
+
+:::
+
+---
+
+<!-- Page 6 -->
+# Research Questions
+::: {.panel-tabset}
+
+## Questions
+- **How do all three relate (Wind, Temperature, Clouds)?**  
+- **How does Pressure and DewPoint affect the other 3?**  
+- **Are there any interesting seasonal patterns?**
+:::
