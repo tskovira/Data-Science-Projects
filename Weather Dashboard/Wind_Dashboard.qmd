@@ -1,0 +1,495 @@
+---
+title: "Weather Dashboard"
+format:
+  dashboard:
+    theme: yeti
+    pages: true
+    orientation: columns
+    embed-resources: true
+    standalone: true
+---
+
+<style>
+
+.nav-tabs > li > a {
+    background-color: #e8f4ff;       
+    border-radius: 8px;
+    margin-right: 8px;
+    padding: 8px 16px;
+    color: #005c99 !important;   
+    font-weight: 600;
+    border: 1px solid #bcdcff;
+    transition: 0.2s;
+}
+
+.nav-tabs > li > a:hover {
+    background-color: #bfe6ff;
+    color: #004d80 !important;
+}
+
+.nav-tabs > li.active > a,
+.nav-tabs > li.active > a:hover {
+    background-color: #0094d9 !important;
+    color: white !important;
+    border: 1px solid #007db3 !important;
+}
+
+.nav-tabs {
+    padding: 10px 12px;
+    background-color: #f2faff;
+    border-radius: 8px;
+    border: none;
+}
+
+</style>
+
+<style>
+.note-box {
+  background: #f7fbff;
+  padding: 14px 18px;
+  border-left: 4px solid #0094d9;
+  border-radius: 8px;
+  margin-left: 20px;
+  font-size: 15px;
+  line-height: 1.5;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.section-with-note {
+  display: flex;
+  gap: 25px;
+  align-items: flex-start;
+}
+</style>
+
+
+
+# Overview
+::: {.panel-tabset}
+
+## Project Summary
+**Group Members:** Travis, Ira, Micah
+
+<b>Goal:</b> This dashboard presents a multi-regional study of U.S. weather behavior in 2024.   
+It combines exploratory weather analysis, geographical mapping, and predictive modeling, including a classification machine-learning model.
+
+Exploring wind data using the Meteostat Python API:
+
+**Source:** [Meteostat Python API](https://dev.meteostat.net/python/daily.html) 
+
+**Time Period:** 2024  
+
+**Frame:** Hourly and Daily 
+
+
+**Key Variables**
+
+- `wspd`: Average wind speed (mph)  
+- `wdir`: Mean wind direction (degrees) 
+- `temp`: Temperature (°F) 
+- `coco`: Condition code 
+
+:::
+---
+
+# Visualizations
+::: {.panel-tabset}
+
+## Aggregation Table
+
+::: {.columns}
+
+::: {.column width="80%"}
+
+```{python}
+
+import pandas as pd
+import numpy as np
+from meteostat import Point, Hourly
+import datetime
+
+cities_by_region = {
+    "Northeast": {
+        "New York, NY": (40.7128, -74.0060),
+        "Boston, MA": (42.3601, -71.0589),
+        "Philadelphia, PA": (39.9526, -75.1652),
+        "Pittsburgh, PA": (40.4406, -79.9959),
+        "Buffalo, NY": (42.8864, -78.8784),
+        "Portland, ME": (43.6591, -70.2568),
+        "Albany, NY": (42.6526, -73.7562)
+    },
+    "Southeast": {
+        "Miami, FL": (25.7617, -80.1918),
+        "Atlanta, GA": (33.7490, -84.3880),
+        "Charlotte, NC": (35.2271, -80.8431),
+        "Jacksonville, FL": (30.3322, -81.6557),
+        "Tampa, FL": (27.9506, -82.4572),
+        "New Orleans, LA": (29.9511, -90.0715),
+        "Raleigh, NC": (35.7796, -78.6382)
+    },
+    "Midwest": {
+        "Chicago, IL": (41.8781, -87.6298),
+        "Detroit, MI": (42.3314, -83.0458),
+        "Minneapolis, MN": (44.9778, -93.2650),
+        "Cleveland, OH": (41.4993, -81.6944),
+        "Milwaukee, WI": (43.0389, -87.9065),
+        "Kansas City, MO": (39.0997, -94.5786),
+        "Des Moines, IA": (41.5868, -93.6250)
+    },
+    "West": {
+        "Los Angeles, CA": (34.0522, -118.2437),
+        "San Francisco, CA": (37.7749, -122.4194),
+        "Seattle, WA": (47.6062, -122.3321),
+        "Portland, OR": (45.5152, -122.6784),
+        "Denver, CO": (39.7392, -104.9903),
+        "Las Vegas, NV": (36.1699, -115.1398),
+        "Salt Lake City, UT": (40.7608, -111.8910),
+        "Phoenix, AZ": (33.4484, -112.0740)
+    },
+    "Case Studies": {
+        "Key West, FL": (24.5551, -81.7800),
+        "Oklahoma City, OK": (35.4676, -97.5164),
+        "Anchorage, AK": (61.2181, -149.9003),
+        "Honolulu, HI": (21.3069, -157.8583)
+    }
+}
+
+
+from Tables_code import create_wind_tables
+left, right = create_wind_tables()
+left
+```
+:::
+
+::: {.column width="80%"}
+```{python}
+right
+```
+:::
+
+:::
+
+## Daily Wind Speed
+
+```{python}
+from Tables_code import get_regional_daily_wind, chart_regional_daily_wind
+import pandas as pd
+import altair as alt
+
+df = get_regional_daily_wind()
+base_chart = chart_regional_daily_wind(df)
+
+findings_df = pd.DataFrame({
+    "line": [
+        "Key Findings:",
+        "- Northeast: Highest wind speeds",
+        "- West: Lowest average wind speed",
+        "- Southeast & West are lower while Northeast & Midwest are higher"
+    ],
+    "y": [0, 1, 2, 3]
+})
+
+findings_text = (
+    alt.Chart(findings_df)
+    .mark_text(align="left", baseline="top", fontSize=13, color="#000000")
+    .encode(
+        text="line:N",
+        y=alt.Y("y:O", axis=None)
+    )
+    .properties(width=10, height=100)
+)
+
+final_chart = alt.hconcat(base_chart, findings_text).configure_view(
+    stroke=None
+)
+
+final_chart
+
+```
+
+
+## Daily Temp
+```{python}
+
+from Tables_code import get_geo_feature_temperature, chart_geo_feature_temperature
+
+df = get_geo_feature_temperature()
+base_chart2 = chart_geo_feature_temperature(df)
+
+findings_df = pd.DataFrame({
+    "line": [
+        "Key Findings:",
+        "- Temperature changes by geographical features",
+            "- Deserts: Hottest",
+            "- Great Lakes: Coldest",
+            "- Volcanic Islands: Extremely Consistant"
+    ],
+    "y": [0, 1, 2, 3, 4]
+})
+
+findings_text = (
+    alt.Chart(findings_df)
+    .mark_text(align="left", baseline="top", fontSize=13, color="#000000")
+    .encode(
+        text="line:N",
+        y=alt.Y("y:O", axis=None)
+    )
+    .properties(width=10, height=100)
+)
+
+final_chart = alt.hconcat(base_chart2, findings_text).configure_view(
+    stroke=None
+)
+
+final_chart
+```
+
+## Wind By City Map
+```{python}
+import datetime
+from Tables_code import get_hourly_wind, generate_cities_map
+cities = {
+    
+        "New York, NY": (40.7128, -74.0060),
+        "Boston, MA": (42.3601, -71.0589),
+        "Philadelphia, PA": (39.9526, -75.1652),
+        "Pittsburgh, PA": (40.4406, -79.9959),
+        "Buffalo, NY": (42.8864, -78.8784),
+        "Portland, ME": (43.6591, -70.2568),
+        "Albany, NY": (42.6526, -73.7562),
+        "Miami, FL": (25.7617, -80.1918),
+        "Atlanta, GA": (33.7490, -84.3880),
+        "Charlotte, NC": (35.2271, -80.8431),
+        "Jacksonville, FL": (30.3322, -81.6557),
+        "Tampa, FL": (27.9506, -82.4572),
+        "New Orleans, LA": (29.9511, -90.0715),
+        "Raleigh, NC": (35.7796, -78.6382),
+        "Chicago, IL": (41.8781, -87.6298),
+        "Detroit, MI": (42.3314, -83.0458),
+        "Minneapolis, MN": (44.9778, -93.2650),
+        "Cleveland, OH": (41.4993, -81.6944),
+        "Milwaukee, WI": (43.0389, -87.9065),
+        "Kansas City, MO": (39.0997, -94.5786),
+        "Des Moines, IA": (41.5868, -93.6250),
+        "Los Angeles, CA": (34.0522, -118.2437),
+        "San Francisco, CA": (37.7749, -122.4194),
+        "Seattle, WA": (47.6062, -122.3321),
+        "Portland, OR": (45.5152, -122.6784),
+        "Denver, CO": (39.7392, -104.9903),
+        "Las Vegas, NV": (36.1699, -115.1398),
+        "Salt Lake City, UT": (40.7608, -111.8910),
+        "Phoenix, AZ": (33.4484, -112.0740),
+        "Key West, FL": (24.5551, -81.7800),
+        "Oklahoma City, OK": (35.4676, -97.5164),
+        "Anchorage, AK": (61.2181, -149.9003),
+        "Honolulu, HI": (21.3069, -157.8583)
+    
+}
+wind_df = get_hourly_wind(cities, 
+    datetime.datetime(2024, 1, 1),
+    datetime.datetime(2024, 12, 31))
+wind_df["day_of_year"]= wind_df["time"].dt.day_of_year
+generate_cities_map(cities, wind_df)
+
+```
+
+:::
+
+
+---
+
+# Interactive Feature Explorer
+
+::: {.panel-tabset}
+
+## Interactive Feature Explorer
+```{python}
+from Tables_code import create_complete_dashboard_std
+
+table = create_complete_dashboard_std()
+
+table
+```
+:::
+
+---
+
+# Extreme Weather
+::: {.panel-tabset}
+
+## Case Study: Tornados
+
+```{python}
+from Tables_code import get_tornado_data, generate_tornado_map
+
+tornado = get_tornado_data()
+generate_tornado_map(tornado)
+
+```
+click points on the map to see the wind speeds for the week surrounding a tornado (Shift+ click to select multiple tornados to compare). <br />
+the catagories are based on the Enhanced Fujita (EF) Scale: EF0 (65-85 mph), EF1 (86-110 mph), EF2 (111-135 mph), EF3 (136-165 mph), EF4 (166-200 mph), and EF5 (>200 mph). Our data visualizations does not seem exactly match with what we would expect to see. We Suspect the reasons for this may include the following: Tornados are categorized by peak wind speed rather than average wind speed; The wind speed is the wind speed at the closest weather station and the distance between stations and tornados can vary greatly; Tornados radius can vary greatly.
+
+:::
+
+---
+
+# ML Model: International Airports Wind Vector Prediction
+
+::: {.panel-tabset}
+
+## International Airports Area Model
+
+:::{.columns}
+
+::: {.column width="95%"}
+The **Goal** of this model is to predict **wind vectors** (speed and direction) at the following International Airports:
+
+* **Pittsburgh International Airport (PIT)** – 40.4406, -79.9959
+* **Los Angeles International Airport (LAX)** – 33.9425, -118.4081
+* **Miami International Airport (MIA)** – 25.7959, -80.2870
+* **Denver International Airport (DEN)** – 39.8617, -104.6731
+* **Chicago O’Hare International Airport (ORD)** – 41.9742, -87.9073
+* **Seattle-Tacoma International Airport (SEA)** – 47.4502, -122.3088
+
+The **Features** used for prediction are the locations and wind vectors associated with the **5 closest stations** for each airport.
+
+We recorded the following **Metrics** on the test set:
+
+| Metric | Value |
+| :--- | :--- |
+| **R² (Coefficient of Determination)** | 0.7408853538672449 |
+| **RMSE (Root Mean Squared Error)** | 5.428108009372506 |
+
+The $R^2$ of $\mathbf{0.74}$ suggests that approximately 74.1% of the variance in the true wind vectors is explained by the model. The RMSE of $\mathbf{5.43}$ represents the average magnitude of the prediction error in $\frac{km}{h}$.
+:::
+::: {.column width="100%"}
+```{python}
+#| echo: false
+from models import get_data, train_model, visualize_predictions
+
+data, stations = get_data()
+station_test, y_test, y_pred = train_model(data)
+
+chart = visualize_predictions(station_test, y_test, y_pred, stations)
+chart
+```
+:::
+
+:::
+
+:::
+
+# Condition Code Classifier
+
+::: {.panel-tabset}
+
+## Overview
+
+**Model Objective**
+- This model predicts weather condition codes using an extensive batch of features.
+
+**Condition Code Groupings**
+
+- **Clear**: Condition codes 1-2 (Fair weather, clear skies)
+- **Cloudy**: Condition codes 3-6 (Cloudy, overcast, foggy conditions)  
+- **Rain**: Condition codes 7-13, 17-20 (Various precipitation types including drizzle, rain, heavy rain)
+- **Snow**: Condition codes 14-16, 21-22 (Snow, sleet, freezing precipitation)
+
+*Note: Storm conditions (codes 23-27) were excluded due to extreme rarity in the dataset*
+
+
+
+**Model Construction**
+
+- **Algorithm**: **XGBoost Classifier** (selected after comparison with Random Forest and Logistic Regression)
+- **City-based splitting** 40 training cities tested blindly on 10 test cities
+- **Features**: **172 engineered features** including:
+  - **Interaction terms**: Temperature-pressure ratios, wind-humidity products, etc
+  - **Lag features**: 1, 2, and 3-hour time lag on weather data
+  - **Differential terms**: Pressure changes, humidity changes, wind speed variations
+  - **Meteorological indices**: Heat index, wind chill, vapor pressure deficit
+  - **Temporal features**: Seasonal cycles, solar elevation, daylight indicators
+- **Manual class weights** applied to address rain/snow underperformance:
+  - Clear: 1.5x | Cloudy: 3.0x | Rain: 20.0x | Snow: 325.0x
+  - This weighting improved Rain and Snow detection rates but slightly reduced overall accuracy
+
+## Confusion Matrix
+
+```{python}
+#| echo: false
+from chart_loader import load_weather_chart
+
+# Load pre-rendered confusion matrix visualization
+confusion_chart = load_weather_chart(visual_type="confusion_matrix")
+confusion_chart
+```
+
+## Top Features
+
+```{python}
+#| echo: false
+from chart_loader import load_weather_chart
+
+# Load pre-rendered feature importance visualization
+feature_chart = load_weather_chart(visual_type="feature_importance")
+
+# Resize the chart to make it smaller
+feature_chart_small = feature_chart.properties(width=400, height=400)
+
+feature_df = pd.DataFrame({
+    "line": [
+        "Top 5 Features:",
+            "- temp_trend: The rate and direction of temperature change over time",
+            "- mixing_ratio: The ratio of water vapor mass to dry air mass, expressed as grams of water vapor per kilogram of dry air",
+            "- temp_pres_ratio_lag1: The ratio of temperature to atmospheric pressure from 1 hour ago",
+            "- temp_lag1: The actual temperature reading from 1 hour ago",
+            "- temp_trend_lag1: The temperature trend (rate of change) from 1 hour ago"
+    ],
+    "y": [0, 1, 2, 3, 4, 5]
+})
+
+feature_text = (
+    alt.Chart(feature_df)
+    .mark_text(align="left", baseline="top", fontSize=13, color="#000000")
+    .encode(
+        text="line:N",
+        y=alt.Y("y:O", axis=None)
+    )
+    .properties(width=400, height=120)
+)
+
+# Display vertically
+feature_chart_small
+feature_text
+```
+
+## Test Cities
+
+```{python}
+#| echo: false
+from chart_loader import load_weather_chart
+
+# Load pre-rendered geographic performance visualization
+geo_chart = load_weather_chart(visual_type="geographic_performance")
+geo_chart
+```
+:::
+
+---
+
+# Research Questions
+
+<div style="display:flex; flex-direction:column; gap:18px;">
+
+<div style="padding:16px; border-radius:10px; background:#f5faff; border:1px solid #cfe3f7;">
+<b>1.</b> How do weather patterns change by region?
+</div>
+
+<div style="padding:16px; border-radius:10px; background:#f5faff; border:1px solid #cfe3f7;">
+<b>2.</b> What are some case studies of extreme weather?
+</div>
+
+<div style="padding:16px; border-radius:10px; background:#f5faff; border:1px solid #cfe3f7;">
+<b>3.</b> How do geographical features (lakes, oceans, mountains, deserts, plains) impact weather patterns?
+</div>
+
+</div>
