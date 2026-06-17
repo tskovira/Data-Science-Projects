@@ -1,0 +1,268 @@
+---
+title: "Wind Dashboard"
+format:
+  dashboard:
+    theme: yeti
+    pages: true
+    orientation: columns
+    embed-resources: true
+    standalone: true
+---
+
+# Overview
+::: {.panel-tabset}
+
+## Comparative Wind Patterns Across U.S. Regions
+Exploring daily wind data using the Meteostat
+
+**Group Members:** Travis, Ira, Micah
+
+**Course:** Data Science 
+
+**Goal:** Explore and compare wind trends in distinct U.S. regions 
+
+:::
+---
+
+# Data & Methods
+::: {.panel-tabset}
+
+## Data Source
+**Source:** [Meteostat Python API](https://dev.meteostat.net/python/daily.html)  
+
+**Dataset Type:** Aggregated weather observations per station  
+
+- **Tornado Data Source:**  [FEMA Tornado Tracks Dataset](https://gis-fema.hub.arcgis.com/datasets/e75412d18bdc469dbf89bf7e929475cc/explore)  
+
+
+**Key Variables**
+
+- `wspd`: Average wind speed (mph)  
+- `wdir`: Mean wind direction (degrees) 
+- `tavg`: Average air temperature (°F)  
+
+**Time Period:** 2024
+
+**Locations:** ~30
+
+**Frame:** Hourly and Daily
+
+**Units:** Metric (mph, degrees, °F)
+
+:::
+---
+
+#Start of Data
+::: {.panel-tabset}
+
+## Station Setup
+```{python}
+import pandas as pd
+import numpy as np
+from meteostat import Point, Hourly
+import datetime
+
+cities_by_region = {
+    "Northeast": {
+        "New York, NY": (40.7128, -74.0060),
+        "Boston, MA": (42.3601, -71.0589),
+        "Philadelphia, PA": (39.9526, -75.1652),
+        "Pittsburgh, PA": (40.4406, -79.9959),
+        "Buffalo, NY": (42.8864, -78.8784),
+        "Portland, ME": (43.6591, -70.2568),
+        "Albany, NY": (42.6526, -73.7562)
+    },
+    "Southeast": {
+        "Miami, FL": (25.7617, -80.1918),
+        "Atlanta, GA": (33.7490, -84.3880),
+        "Charlotte, NC": (35.2271, -80.8431),
+        "Jacksonville, FL": (30.3322, -81.6557),
+        "Tampa, FL": (27.9506, -82.4572),
+        "New Orleans, LA": (29.9511, -90.0715),
+        "Raleigh, NC": (35.7796, -78.6382)
+    },
+    "Midwest": {
+        "Chicago, IL": (41.8781, -87.6298),
+        "Detroit, MI": (42.3314, -83.0458),
+        "Minneapolis, MN": (44.9778, -93.2650),
+        "Cleveland, OH": (41.4993, -81.6944),
+        "Milwaukee, WI": (43.0389, -87.9065),
+        "Kansas City, MO": (39.0997, -94.5786),
+        "Des Moines, IA": (41.5868, -93.6250)
+    },
+    "West": {
+        "Los Angeles, CA": (34.0522, -118.2437),
+        "San Francisco, CA": (37.7749, -122.4194),
+        "Seattle, WA": (47.6062, -122.3321),
+        "Portland, OR": (45.5152, -122.6784),
+        "Denver, CO": (39.7392, -104.9903),
+        "Las Vegas, NV": (36.1699, -115.1398),
+        "Salt Lake City, UT": (40.7608, -111.8910),
+        "Phoenix, AZ": (33.4484, -112.0740)
+    },
+    "Case Studies": {
+        "Key West, FL": (24.5551, -81.7800),
+        "Oklahoma City, OK": (35.4676, -97.5164),
+        "Anchorage, AK": (61.2181, -149.9003),
+        "Honolulu, HI": (21.3069, -157.8583)
+    }
+}
+```
+:::
+---
+
+# Models
+::: {.panel-tabset}
+
+## Linear Model  
+```{python} 
+from models import get_data, train_model, visualize_predictions
+
+X, y, stations = get_data()
+y_test, y_pred = train_model(X, y)
+
+visualize_predictions(y_test, y_pred, stations)
+
+```
+:::
+---
+
+# Regional Wind Table
+::: {.panel-tabset}
+
+## Aggregation Table
+```{python}
+
+from Tables_code import create_wind_table
+
+table = create_wind_table()
+table
+```
+:::
+---
+
+
+# Visualizations
+::: {.panel-tabset}
+
+## Daily Wind Speed
+```{python}
+
+from Tables_code import get_regional_daily_wind, chart_regional_daily_wind
+
+df = get_regional_daily_wind()
+chart = chart_regional_daily_wind(df)
+chart
+```
+
+
+## Daily Temp
+```{python}
+
+from Tables_code import get_geo_feature_temperature, chart_geo_feature_temperature
+
+df = get_geo_feature_temperature()
+chart = chart_geo_feature_temperature(df)
+chart
+```
+
+## Wind By City Map
+```{python}
+import datetime
+import altair as alt
+alt.data_transformers.enable('json')
+from Tables_code import get_hourly_wind, generate_cities_map
+cities = {
+    
+        "New York, NY": (40.7128, -74.0060),
+        "Boston, MA": (42.3601, -71.0589),
+        "Philadelphia, PA": (39.9526, -75.1652),
+        "Pittsburgh, PA": (40.4406, -79.9959),
+        "Buffalo, NY": (42.8864, -78.8784),
+        "Portland, ME": (43.6591, -70.2568),
+        "Albany, NY": (42.6526, -73.7562),
+        "Miami, FL": (25.7617, -80.1918),
+        "Atlanta, GA": (33.7490, -84.3880),
+        "Charlotte, NC": (35.2271, -80.8431),
+        "Jacksonville, FL": (30.3322, -81.6557),
+        "Tampa, FL": (27.9506, -82.4572),
+        "New Orleans, LA": (29.9511, -90.0715),
+        "Raleigh, NC": (35.7796, -78.6382),
+        "Chicago, IL": (41.8781, -87.6298),
+        "Detroit, MI": (42.3314, -83.0458),
+        "Minneapolis, MN": (44.9778, -93.2650),
+        "Cleveland, OH": (41.4993, -81.6944),
+        "Milwaukee, WI": (43.0389, -87.9065),
+        "Kansas City, MO": (39.0997, -94.5786),
+        "Des Moines, IA": (41.5868, -93.6250),
+        "Los Angeles, CA": (34.0522, -118.2437),
+        "San Francisco, CA": (37.7749, -122.4194),
+        "Seattle, WA": (47.6062, -122.3321),
+        "Portland, OR": (45.5152, -122.6784),
+        "Denver, CO": (39.7392, -104.9903),
+        "Las Vegas, NV": (36.1699, -115.1398),
+        "Salt Lake City, UT": (40.7608, -111.8910),
+        "Phoenix, AZ": (33.4484, -112.0740),
+        "Key West, FL": (24.5551, -81.7800),
+        "Oklahoma City, OK": (35.4676, -97.5164),
+        "Anchorage, AK": (61.2181, -149.9003),
+        "Honolulu, HI": (21.3069, -157.8583)
+    
+}
+wind_df = get_hourly_wind(cities, 
+    datetime.datetime(2024, 1, 1),
+    datetime.datetime(2024, 12, 31))
+wind_df["day_of_year"]= wind_df["time"].dt.day_of_year
+generate_cities_map(cities, wind_df)
+
+```
+click points on the map to see the 2024 wind speeds for a given city. (Shift + click to select multiple cities to compare).
+:::
+
+
+---
+
+
+
+# Interactive Feature Explorer
+
+::: {.panel-tabset}
+
+## Interactive Feature Explorer
+```{python}
+from Tables_code import create_complete_dashboard_std
+
+table = create_complete_dashboard_std()
+
+table
+```
+:::
+
+---
+
+# Extreme Weather
+::: {.panel-tabset}
+
+## Case Study: Tornados
+
+```{python}
+from Tables_code import get_tornado_data, generate_tornado_map
+
+tornado = get_tornado_data()
+generate_tornado_map(tornado)
+
+```
+click points on the map to see the wind speeds for the week surrounding a tornado (Shift+ click to select multiple tornados to compare). <br />
+the catagories are based on the Enhanced Fujita (EF) Scale: EF0 (65-85 mph), EF1 (86-110 mph), EF2 (111-135 mph), EF3 (136-165 mph), EF4 (166-200 mph), and EF5 (>200 mph). Our data visualizations does not seem exactly match with what we would expect to see. We Suspect the reasons for this may include the following: Tornados are categorized by peak wind speed rather than average wind speed; The wind speed is the wind speed at the closest weather station and the distance between stations and tornados can vary greatly; Tornados radius can vary greatly.                      
+:::
+
+---
+
+# Research Questions
+
+1. How do wind patterns change by region?
+
+2. What are some case studies of extreme weather?
+
+3. How do geographical features (lakes, oceans, mountains, deserts, plains) impact wind patterns?
+
